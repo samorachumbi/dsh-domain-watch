@@ -45,6 +45,47 @@ JavaScript required. Countdowns are computed per request from the remembered reg
 numbers move even when nobody clicks anything. That is the point: the failure being guarded against
 is time passing.
 
+## The pill
+
+![The pill, mid-check](docs/pill-working.png)
+
+A draggable bubble in the harness shell, beside the apps pill. It exists because the board answers
+*what is happening* while the pill answers *is it on, and is it working* — a different question,
+asked far more often, by someone who is not going to open a tab to ask it.
+
+Always visible, on purpose: a thing that is always present makes its own **absence** meaningful, and
+an indicator that comes and goes can never tell you it has broken.
+
+| State | Reads | What a non-developer does with it |
+|---|---|---|
+| calm | `domains fine ✓` | nothing |
+| **invoked** | `domains checking itikia.co.ke…` | *sees that it heard, before the answer arrives* |
+| just finished | `domains itikia.co.ke ✓` | nothing |
+| expiring | `domains 2 expiring` | look, soon |
+| expired | `domains needs renewing` | renew today |
+| **not registered** | `domains not registered` | **act now — you do not own this** |
+| unreachable | `domains ?` | cannot check right now |
+
+Three rules make it trustworthy, and all three are about the person reading it rather than the code:
+
+**It can say "I don't know."** A failed poll shows `?`, never a tick. A status light that lies would be
+this plugin's own thesis broken by the thing built to enforce it.
+
+**Colour changes on invocation, not on completion.** The worst thing an assistant can do is go quiet —
+so the acknowledgement cannot wait for the result.
+
+**Every alarm carries a verb.** A developer sees red and checks the logs. Everyone else sees red and
+needs to be told what to do, or the light is just anxiety.
+
+The level, the words and that sentence are all decided **host-side** by `summarize()`, and the board
+header paints the same object — so the bubble and the page can never disagree.
+
+Motion is a slow breath (~2.5s), never a blink: a permanently blinking element becomes wallpaper
+within a week and then hides the morning it actually mattered. It stops entirely under
+`prefers-reduced-motion`, and the breath lives in the chip's **tint** rather than the pill's overall
+opacity — fading the whole pill faded its words to 3.09:1, under the 4.5:1 floor. Fading the tint is
+a pulse; fading the text is an unreadable status light. Measured after the change: **5.21:1**.
+
 ## The verdicts
 
 `domain_check` does not just look things up. Given what a panel told you, it names the disagreement:
