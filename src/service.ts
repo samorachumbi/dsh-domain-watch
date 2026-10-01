@@ -11,6 +11,7 @@
 import { KENIC_GRACE, lifecycle, parseWhois, verdict, type GraceWindows, type LifecyclePhase, type VerdictCode } from './domain.ts'
 import { normalizeDomain, registryFor, whoisQuery } from './whois.ts'
 import type { WatchStore } from './store.ts'
+import { summarize, type Activity, type LastResult, type Summary } from './summary.ts'
 
 export interface CheckResult {
   domain: string
@@ -38,6 +39,14 @@ export interface ServiceDeps {
   grace: GraceWindows
   warnWithinDays: number
   timeoutMs: number
+  /**
+   * The transport, injectable so a test can make it THROW.
+   *
+   * That is not decoration: the guarantee that the "checking…" light always clears is a `finally`,
+   * and a `finally` nobody has watched run under failure is an assumption. Defaults to the real
+   * whois client.
+   */
+  query?: (domain: string, server: string, timeoutMs: number) => Promise<string>
 }
 
 function failure(domain: string, error: string): CheckResult {
@@ -63,15 +72,50 @@ function failure(domain: string, error: string): CheckResult {
   }
 }
 
-export function createService({ store, grace, warnWithinDays, timeoutMs }: ServiceDeps) {
+export function createService({ store, grace, warnWithinDays, timeoutMs, query = whoisQuery }: ServiceDeps) {
   /**
    * Ask the registry about one domain.
    *
    * `claimed` is what a vendor's panel told the operator. Passing it is what turns this from a
    * lookup into a **judgement**, and it is the whole reason the plugin exists.
    */
+  /**
+   * Domains currently being asked about, and when each request started.
+   *
+   * This exists so the pill's "working" state is a FACT rather than an inference from a timestamp
+   * moving. An acknowledgement that is produced by guessing is worse than none: it fires late, or
+   * when nothing happened at all.
+   */
+  const inFlight = new Map<string, string>()
+  let lastResult: LastResult | null = null
+
+  /** What is in flight now; oldest first, so a burst names the one that started first. */
+  const activity = (): Activity => {
+    if (inFlight.size === 0) return { busy: false, domain: null, since: null }
+    const oldest = [...inFlight.entries()].sort((a, b) => a[1].localeCompare(b[1]))[0]
+    return { busy: true, domain: oldest?.[0] ?? null, since: oldest?.[1] ?? null }
+  }
+
+  /**
+   * Ask the registry, wrapped so the pill can see it happen.
+   *
+   * The in-flight marker is set BEFORE the query and cleared in a `finally`, so a throw, a timeout
+   * or an early return all clear it. A stuck "checking…" light would be the one state a user cannot
+   * distinguish from a hung plugin.
+   */
   const check = async (input: string, claimed?: string | null, now = new Date()): Promise<CheckResult> => {
     const domain = normalizeDomain(input)
+    inFlight.set(domain, new Date().toISOString())
+    try {
+      const result = await runCheck(domain, claimed, now)
+      lastResult = { domain, ok: result.error === '', at: result.checkedAt }
+      return result
+    } finally {
+      inFlight.delete(domain)
+    }
+  }
+
+  const runCheck = async (domain: string, claimed: string | null | undefined, now: Date): Promise<CheckResult> => {
     const registry = registryFor(domain)
     if (registry === null) {
       return failure(
@@ -84,7 +128,7 @@ export function createService({ store, grace, warnWithinDays, timeoutMs }: Servi
 
     let raw: string
     try {
-      raw = await whoisQuery(domain, registry.server, timeoutMs)
+      raw = await query(domain, registry.server, timeoutMs)
     } catch (err) {
       // A network failure is NOT "available". Saying so would be the single most expensive
       // sentence this plugin could emit.
@@ -164,7 +208,10 @@ export function createService({ store, grace, warnWithinDays, timeoutMs }: Servi
   /** Stop watching. Removes the RECORD only — it never touches the domain itself. */
   const remove = async (input: string): Promise<boolean> => store.remove(input)
 
-  return { check, checkAndRecord, add, remove, board }
+  /** The pill's and the board's single source of truth. */
+  const summary = async (): Promise<Summary> => summarize(await board(), activity(), lastResult)
+
+  return { check, checkAndRecord, add, remove, board, summary, activity }
 }
 
 export type DomainWatchService = ReturnType<typeof createService>

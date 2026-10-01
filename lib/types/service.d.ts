@@ -9,6 +9,7 @@
  */
 import { type GraceWindows, type LifecyclePhase, type VerdictCode } from './domain.ts';
 import type { WatchStore } from './store.ts';
+import { type Activity, type Summary } from './summary.ts';
 export interface CheckResult {
     domain: string;
     registered: boolean;
@@ -34,8 +35,16 @@ export interface ServiceDeps {
     grace: GraceWindows;
     warnWithinDays: number;
     timeoutMs: number;
+    /**
+     * The transport, injectable so a test can make it THROW.
+     *
+     * That is not decoration: the guarantee that the "checking…" light always clears is a `finally`,
+     * and a `finally` nobody has watched run under failure is an assumption. Defaults to the real
+     * whois client.
+     */
+    query?: (domain: string, server: string, timeoutMs: number) => Promise<string>;
 }
-export declare function createService({ store, grace, warnWithinDays, timeoutMs }: ServiceDeps): {
+export declare function createService({ store, grace, warnWithinDays, timeoutMs, query }: ServiceDeps): {
     check: (input: string, claimed?: string | null, now?: Date) => Promise<CheckResult>;
     checkAndRecord: (input: string, claimed?: string | null) => Promise<CheckResult>;
     add: (input: string, note?: string) => Promise<CheckResult>;
@@ -57,5 +66,7 @@ export declare function createService({ store, grace, warnWithinDays, timeoutMs 
         statuses?: string[];
         lastError?: string;
     }[]>;
+    summary: () => Promise<Summary>;
+    activity: () => Activity;
 };
 export type DomainWatchService = ReturnType<typeof createService>;

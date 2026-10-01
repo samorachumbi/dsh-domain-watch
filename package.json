@@ -1,7 +1,7 @@
 {
   "name": "dsh-domain-watch",
-  "version": "0.1.0",
-  "description": "Ask the registry, not the vendor's dashboard: whether a domain is really registered, who the registrar of record is, when it dies, and whether the panel telling you it is fine is telling the truth.",
+  "version": "0.2.0",
+  "description": "A presence pill in the harness shell plus four agent tools: whether a domain is really registered at the REGISTRY, who the registrar of record is, when it dies, and whether the dashboard telling you it is fine is telling the truth.",
   "keywords": [
     "dsh",
     "deepseek-harness",
@@ -28,19 +28,26 @@
       "default": "./lib/index.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./client": {
+      "default": "./lib/client.js"
+    }
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
     }
   },
   "scripts": {
     "clean": "rm -rf lib",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test tests/*.test.ts",
-    "probe": "node scripts/probe.mjs"
+    "probe": "node scripts/probe.mjs",
+    "client": "node scripts/build-client.mjs"
   },
   "engines": {
     "node": ">=22.19.0"

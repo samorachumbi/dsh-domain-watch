@@ -11,6 +11,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { DomainWatchService } from './service.ts'
+import type { Summary } from './summary.ts'
 
 export const ROUTE_PREFIX = '/domain-watch'
 
@@ -107,12 +108,15 @@ function phaseClass(phase: string): string {
   return 'p-bad'
 }
 
-function renderBoard(rows: Awaited<ReturnType<DomainWatchService['board']>>, now: Date): string {
-  const problems = rows.filter((r) => r.phase !== 'active' || (r.lastError ?? '') !== '')
-  const banner = problems.length === 0
-    ? ''
-    : '<p class="sub" style="color:var(--bad)"><strong>' + problems.length +
-      '</strong> of ' + rows.length + ' need attention.</p>'
+function renderBoard(rows: Awaited<ReturnType<DomainWatchService['board']>>, summary: Summary, now: Date): string {
+  // The SAME summary the pill paints. One rule, one place: a status re-derived in the page would
+  // drift from the one on the bubble, and the two would disagree the first time either changed.
+  const tone = summary.level === 'alarm' ? 'var(--bad)'
+    : summary.level === 'attention' ? 'var(--warn)'
+      : summary.level === 'calm' ? 'var(--ok)' : 'var(--soft)'
+  const banner = '<p class="sub" style="color:' + tone + '"><strong>' +
+    esc(summary.label) + (summary.glyph ? ' ' + summary.glyph : '') + '</strong> — ' +
+    esc(summary.action) + '</p>'
 
   const body = rows.length === 0
     ? '<div class="empty">Nothing is being watched yet.<br>Add one with <code>domain_watch_add</code>, ' +
@@ -169,11 +173,17 @@ export function createHandlers(service: DomainWatchService) {
       try {
         if (req.method === 'GET' && (path === ROUTE_PREFIX || path === ROUTE_PREFIX + '/ui')) {
           const rows = await service.board()
-          send(res, 200, 'text/html; charset=utf-8', renderBoard(rows, new Date()))
+          send(res, 200, 'text/html; charset=utf-8', renderBoard(rows, await service.summary(), new Date()))
           return
         }
         if (req.method === 'GET' && path === ROUTE_PREFIX + '/state') {
-          sendJson(res, 200, { ok: true, domains: await service.board() })
+          // `summary` is derived host-side so the pill and the board can never disagree about what
+          // is wrong; the pill paints `summary` and reads nothing else.
+          sendJson(res, 200, {
+            ok: true,
+            summary: await service.summary(),
+            domains: await service.board(),
+          })
           return
         }
         if (req.method === 'GET' && path === ROUTE_PREFIX + '/check') {
