@@ -27,6 +27,8 @@ wrong.
 A cache is wrong in both directions. The fix is not a better dashboard. The fix is asking the
 authority, and refusing to average the two answers into a comfortable middle.
 
+![The domain board, dark theme](docs/board-dark.png)
+
 ## What it does
 
 Four agent tools and one host-rendered page.
