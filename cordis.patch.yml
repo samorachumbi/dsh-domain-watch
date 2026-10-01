@@ -1,0 +1,12 @@
+# dsh-domain-watch bundle patch.
+#
+# Host-plane only: the plugin owns a small watched-domain store, the agent tools
+# that query the registry, and one host-rendered page at <origin>/domain-watch/ui.
+#
+# There is deliberately NO `dsh.client` half. A page in its own tab keeps the
+# harness UI untouched, and with no client manifest `dsh-client-modules` never
+# tries to compose a bundle that would have to be built and shipped — the mistake
+# that aborted a boot upstream.
+- insert:
+    - id: domain-watch
+      name: 'dsh-domain-watch'
