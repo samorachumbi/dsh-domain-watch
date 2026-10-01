@@ -47,7 +47,7 @@ is time passing.
 
 ## The pill
 
-![The pill, mid-check](docs/pill-working.png)
+![The pill in the shell: bottom-left beside the apps pill, with the cost bubble at bottom-right](docs/pill-working.png)
 
 A draggable bubble in the harness shell, beside the apps pill. It exists because the board answers
 *what is happening* while the pill answers *is it on, and is it working* — a different question,
@@ -65,6 +65,8 @@ an indicator that comes and goes can never tell you it has broken.
 | expired | `domains needs renewing` | renew today |
 | **not registered** | `domains not registered` | **act now — you do not own this** |
 | unreachable | `domains ?` | cannot check right now |
+
+![The chip just after a successful check: the domain, then a tick](docs/pill-done.png)
 
 Three rules make it trustworthy, and all three are about the person reading it rather than the code:
 
@@ -164,7 +166,7 @@ claiming to answer for any TLD would be lying quietly.
 ```bash
 npm install
 npm run typecheck     # tsc, strict
-npm test              # 17 tests, no network — real registry replies as fixtures
+npm test              # 38 tests, no network — real registry replies as fixtures
 npm run build
 node scripts/probe.mjs example.co.ke    # LIVE: a real registry round trip
 ```
@@ -175,6 +177,24 @@ suite, those fixtures *are* the registry, which makes them the most important fi
 
 The probe is the other half: recorded replies prove the parsing, and only a live query proves the
 transport, the registry map, and the round trip.
+
+## Built by
+
+Built by **Samora Chumbi** — [@samorachumbi](https://github.com/samorachumbi) — for a harness that had
+to stop believing vendor dashboards.
+
+If the registry map is wrong for a TLD you actually use, that is the most useful bug you can file:
+[open an issue](https://github.com/samorachumbi/dsh-domain-watch/issues). Adding a TLD from the IANA
+root database is a small change, and it makes the plugin correct for the next person too.
+
+Other plugins from the same workshop:
+
+- [**dsh-cost-bubble**](https://github.com/samorachumbi/dsh-cost-bubble) — what the current chat is
+  costing, live, with the billed token buckets and cache-hit rate.
+- [**dsh-app-launcher**](https://github.com/samorachumbi/dsh-app-launcher) — the Apps pill this
+  plugin's bubble sits beside: one click opens a plugin's page in its own OS window.
+- [**dsh-daily-progress-tab**](https://github.com/samorachumbi/dsh-daily-progress-tab) — the venture
+  board this work was prioritised against (a fork of `omdsh-dev/dsh-daily-progress`).
 
 ## Licence
 
