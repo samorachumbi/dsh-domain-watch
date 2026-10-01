@@ -181,11 +181,12 @@ transport, the registry map, and the round trip.
 ## Built by
 
 Built by **Samora Chumbi** — [@samorachumbi](https://github.com/samorachumbi) — for a harness that had
-to stop believing vendor dashboards.
+to stop believing vendor dashboards. I build DSH plugins; this is the fourth.
 
-If the registry map is wrong for a TLD you actually use, that is the most useful bug you can file:
-[open an issue](https://github.com/samorachumbi/dsh-domain-watch/issues). Adding a TLD from the IANA
-root database is a small change, and it makes the plugin correct for the next person too.
+**To reach me — about a bug, a registry this map gets wrong, or a plugin you wish existed — open an
+issue:** <https://github.com/samorachumbi/dsh-domain-watch/issues>. If the map is wrong for a TLD you
+actually use, that is the most useful bug you can file: adding a TLD from the IANA root database is a
+small change, and it makes the plugin correct for the next person too.
 
 Other plugins from the same workshop:
 
