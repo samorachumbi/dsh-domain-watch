@@ -104,6 +104,12 @@ None of this is covered by "it looked fine" — the decision was hoisted out of 
 body into a pure `pillState()` precisely so it could be tested, and reintroducing each defect fails
 the suite.
 
+**The tooltip is the host's sentence, not the client's.** What the pill says when you hover it is
+`summary.action`, decided by `summarize()` on the server — while the click lives in the client
+bundle. They are in different files, so they drift the moment either one changes: the client tooltip
+was corrected for the new click behaviour and the host went on saying *"Click to open the board"* for
+a day afterwards. A test now forbids the host from promising anything the click does not do.
+
 Motion is a slow breath (~2.5s), never a blink: a permanently blinking element becomes wallpaper
 within a week and then hides the morning it actually mattered. It stops entirely under
 `prefers-reduced-motion`, and the breath lives in the chip's **tint** rather than the pill's overall
