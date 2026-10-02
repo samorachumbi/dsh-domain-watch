@@ -11,6 +11,10 @@
 //   1. Colour changes the MOMENT it is invoked, before the answer arrives. The worst thing an
 //      assistant can do is go quiet — "did it hear me, is it thinking, did it die?" — so the
 //      acknowledgement cannot wait for the result.
+//      ENFORCED WITH A FLOOR (ACK_MS), not merely hoped for. A .ke registry answers in 24-74 ms while
+//      this pill polls at POLL_MS, so before the floor existed the acknowledgement rendered in about
+//      one invocation in thirteen — and nothing in the UI invoked a check at all, so in use it never
+//      rendered. Rule 1 was a claim the code did not keep. The floor is what makes it true.
 //   2. It can say "I don't know." A failed poll shows `?`, never a tick. A status light that lies
 //      is the exact failure this plugin exists to catch; committing it here would be self-refuting.
 //   3. Every colour carries a WORD, and every alarming state carries a VERB in its tooltip. A
@@ -37,6 +41,19 @@ window.__ModuleLoader__.load({
     const DONE_MS = 2500;
     /** A result older than this is history, not news — it must not produce a celebration. */
     const RECENT_MS = 6000;
+    /**
+     * The MINIMUM time the blue "checking" acknowledgement stays up, however fast the answer comes.
+     *
+     * This exists because of a measured defect: a .ke whois answers in 24-74 ms and this pill polls
+     * at POLL_MS, so the blue tint was rendered in roughly one invocation in thirteen — and since
+     * nothing in the UI triggered a check, in practice it never rendered at all. An acknowledgement
+     * nobody can see is not an acknowledgement.
+     *
+     * It is a BOUND, not a delay. When ACK_MS elapses the truth takes over whatever it is, so a slow
+     * or failing check can never hide behind it — which is why this is allowed to exist at all in a
+     * plugin whose whole thesis is that a status light must not lie.
+     */
+    const ACK_MS = 1200;
 
     /**
      * Background/foreground PAIRS, not hues.
@@ -76,6 +93,57 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * THE PILL'S WHOLE DECISION, as a pure function of what is known.
+     *
+     * Hoisted out of the component and exported for exactly one reason: inside a React function body
+     * this was untestable, and untestable is how rule 1 — "colour changes the MOMENT it is invoked"
+     * — became a claim the code did not keep for a whole day. It takes values and returns a state.
+     * No hooks, no DOM, and no clock of its own.
+     *
+     * THE ORDER OF THE BRANCHES IS THE DESIGN, not an accident of editing:
+     *   1. `null` reachable  -> connecting, because rendering `?` before the first poll answers
+     *      would be a small lie at the exact moment the user decides whether to trust the light.
+     *   2. unreachable       -> `?`. Never a tick.
+     *   3. ACKNOWLEDGING     -> working. Outranks the summary, because a registry that answers in
+     *      24 ms must not be able to swallow the acknowledgement of the user's own click.
+     *   4. the summary       -> including the green "done" flash.
+     */
+    function pillState(input) {
+      const acknowledging = input.now < input.invokedUntil;
+      const showDone = input.now < input.doneUntil;
+      const summary = input.summary;
+      const reachable = input.reachable;
+      const state = {
+        level: "unknown",
+        label: "domains ?",
+        action: "Can't check right now — no answer from the plugin.",
+        glyph: null,
+        acknowledging: acknowledging,
+        showDone: showDone,
+      };
+
+      if (reachable === null) {
+        state.level = "connecting";
+        state.label = "…";
+      } else if (reachable === false) {
+        state.level = "unknown";
+        state.label = "?";
+      } else if (acknowledging) {
+        state.level = "working";
+        state.label = summary && summary.level === "working" ? summary.label : "checking…";
+        state.action = "Asking the registry now — this takes a second or two.";
+      } else if (summary) {
+        state.level = showDone ? "done" : summary.level;
+        state.label = showDone
+          ? (summary.lastResult ? summary.lastResult.domain : "done")
+          : summary.label;
+        state.glyph = showDone ? "✓" : summary.glyph;
+        state.action = showDone ? "Just checked." : (summary.action || "");
+      }
+      return state;
+    }
+
     function DomainWatchPill(props) {
       const interval = props.interval;
       const [summary, setSummary] = React.useState(null);
@@ -84,11 +152,13 @@ window.__ModuleLoader__.load({
       // the user is deciding whether to trust the light.
       const [reachable, setReachable] = React.useState(null);
       const [doneUntil, setDoneUntil] = React.useState(0);
+      const [invokedUntil, setInvokedUntil] = React.useState(0);
       const [now, setNow] = React.useState(Date.now());
       const [dim, setDim] = React.useState(false);
       const [pos, setPos] = React.useState({ x: 0, y: 0 });
       const dragRef = React.useRef(null);
       const lastResultAt = React.useRef(null);
+      const tickRef = React.useRef(null);
       const reduced = React.useRef(prefersReducedMotion());
 
       // Poll the PLUGIN, never the registry: this reads remembered facts, so a browser tab cannot
@@ -121,22 +191,37 @@ window.__ModuleLoader__.load({
             if (alive) setReachable(false);
           }
         };
+        // The click handler polls again the moment its re-check resolves, so the result lands
+        // promptly instead of waiting up to POLL_MS behind an acknowledgement that has already
+        // ended. Without this the pill could show blue, then blink back to calm, then go green.
+        tickRef.current = tick;
         tick();
         const dispose = interval ? interval(tick, POLL_MS) : null;
         return () => {
           alive = false;
+          tickRef.current = null;
           if (typeof dispose === "function") dispose();
         };
       }, [interval]);
 
+      // The whole decision lives in `pillState`, a pure function defined at module level. It used to
+      // be inlined here, AFTER the breath effect had already decided from the raw summary whether to
+      // pulse — so the breath and the render each had their own opinion about which state the pill
+      // was in. One derivation, and one that a test can call.
+      const view = pillState({ reachable: reachable, summary: summary, now: now, invokedUntil: invokedUntil, doneUntil: doneUntil });
+      const level = view.level;
+      const label = view.label;
+      const action = view.action;
+      const glyph = view.glyph;
+
       // The breath. Driven here rather than by injected CSS so there is no stylesheet to collide
       // with, and so `prefers-reduced-motion` is a plain early return rather than a media query
-      // someone can forget.
+      // someone can forget. It follows the EFFECTIVE level, so an acknowledged click breathes too.
       React.useEffect(() => {
         if (reduced.current) return undefined;
-        const isDone = now < doneUntil;
-        const isWorking = reachable && summary && summary.level === "working";
-        const isTrouble = reachable && summary && (summary.level === "attention" || summary.level === "alarm");
+        const isWorking = level === "working";
+        const isTrouble = level === "attention" || level === "alarm";
+        const isDone = level === "done";
         if (!isWorking && !isTrouble && !isDone) return undefined;
         const period = isWorking ? 700 : isDone ? 500 : 1250;
         const id = setInterval(() => {
@@ -144,14 +229,33 @@ window.__ModuleLoader__.load({
           setNow(Date.now());
         }, period);
         return () => clearInterval(id);
-      }, [reachable, summary, doneUntil, now]);
+      }, [level]);
 
-      // Keep the "done" window honest without a second timer.
+      // Expire whichever acknowledgement is running. Without a timer on `invokedUntil` as well,
+      // `now` goes stale and the pill freezes in a state that has already ended.
       React.useEffect(() => {
-        if (now >= doneUntil) return undefined;
-        const id = setTimeout(() => setNow(Date.now()), doneUntil - now + 20);
+        const pending = [doneUntil, invokedUntil].filter((t) => t > Date.now());
+        if (pending.length === 0) return undefined;
+        const at = Math.min.apply(null, pending);
+        const id = setTimeout(() => setNow(Date.now()), Math.max(20, at - Date.now() + 20));
         return () => clearTimeout(id);
-      }, [doneUntil, now]);
+      }, [doneUntil, invokedUntil, now]);
+
+      // WHAT A CLICK DOES: re-check, and acknowledge. It no longer opens the board.
+      //
+      // It used to call `window.open("/domain-watch/ui")`, so the one gesture the host's own text
+      // advertised — "Click to check them now" — was the one gesture that checked nothing. The board
+      // moved to the apps pill, where a page belongs; a status light's click should do the cheap,
+      // frequent thing and answer in the shell.
+      function invokeRecheck() {
+        const t = Date.now();
+        // Colour changes on the CLICK, before a byte goes out. That is the whole of rule 1.
+        setInvokedUntil(t + ACK_MS);
+        setNow(t);
+        fetch("/domain-watch/recheck", { method: "POST", cache: "no-store" })
+          .then(() => { if (tickRef.current) return tickRef.current(); })
+          .catch(() => { /* the next poll reports `?` if the plugin is unreachable */ });
+      }
 
       function onPointerDown(e) {
         if (e.button !== 0) return;
@@ -170,30 +274,9 @@ window.__ModuleLoader__.load({
       function onPointerUp(e) {
         const d = dragRef.current;
         dragRef.current = null;
-        // A drag is not a click. Without this, moving the pill would also open a tab.
+        // A drag is not a click. Without this, moving the pill would also fire a check.
         if (d && d.moved) return;
-        window.open("/domain-watch/ui", "_blank", "noopener");
-      }
-
-      const showDone = now < doneUntil;
-      let level = "unknown";
-      let label = "domains ?";
-      let action = "Can't check right now — no answer from the plugin.";
-      let glyph = null;
-
-      if (reachable === null) {
-        level = "connecting";
-        label = "…";
-      } else if (reachable === false) {
-        level = "unknown";
-        label = "?";
-      } else if (summary) {
-        level = showDone ? "done" : summary.level;
-        label = showDone
-          ? (summary.lastResult ? summary.lastResult.domain : "done")
-          : summary.label;
-        glyph = showDone ? "✓" : summary.glyph;
-        action = showDone ? "Just checked." : (summary.action || "");
+        invokeRecheck();
       }
 
       const chip = CHIP[level] || CHIP.unknown;
@@ -208,7 +291,7 @@ window.__ModuleLoader__.load({
           onPointerDown: onPointerDown,
           onPointerMove: onPointerMove,
           onPointerUp: onPointerUp,
-          title: (action || "Domain watch") + "  ·  click to open, drag to move",
+          title: (action || "Domain watch") + "  ·  click to re-check, drag to move",
           style: {
             position: "fixed",
             // TOP-LEFT OF ITS OWN ROW, BESIDE THE APPS PILL.
@@ -287,6 +370,9 @@ window.__ModuleLoader__.load({
         (props) => React.createElement(DomainWatchPill, { ...props, interval: interval }),
       ));
     }
+
+    // Exported for the test suite alone: the pill's decision must be callable without a DOM.
+    exports.pillState = pillState;
 
     exports.apply = apply;
     exports.inject = inject;

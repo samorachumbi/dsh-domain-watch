@@ -101,3 +101,68 @@ test('lastResult records that a check HAPPENED, which is what the done-flash pai
   assert.equal(s.lastResult?.ok, true)
   assert.notEqual(s.lastResult?.at, undefined)
 })
+
+// ---------------------------------------------------------------------------------------------
+// recheckAll — what the pill's CLICK calls. Added 2026-10-02 with the fix for the defect that
+// made the blue acknowledgement invisible: nothing in the UI invoked a check at all.
+// ---------------------------------------------------------------------------------------------
+
+function seeded(domains: string[], query: (d: string) => Promise<string>) {
+  return createService({
+    store: fakeStore(domains.map((domain) => ({ domain, addedAt: '2026-10-01' })) as unknown as Watched[]) as never,
+    grace: KENIC_GRACE,
+    warnWithinDays: 60,
+    timeoutMs: 1000,
+    query: (d) => query(d),
+  })
+}
+
+test('recheckAll asks about EVERY watched domain, once each, in list order', async () => {
+  const asked: string[] = []
+  const service = seeded(['a.co.ke', 'b.co.ke', 'c.co.ke'], async (d) => { asked.push(d); return REGISTERED })
+  const out = await service.recheckAll()
+  assert.deepEqual(asked, ['a.co.ke', 'b.co.ke', 'c.co.ke'], 'each watched domain, exactly once')
+  assert.equal(out.length, 3)
+  assert.equal(out.every((r) => r.ok), true, 'all three answered')
+})
+
+test('recheckAll is SEQUENTIAL — never two registry queries open at once', async () => {
+  let open = 0
+  let peak = 0
+  const service = seeded(['a.co.ke', 'b.co.ke', 'c.co.ke'], async () => {
+    open += 1
+    peak = Math.max(peak, open)
+    await new Promise((r) => setTimeout(r, 5))
+    open -= 1
+    return REGISTERED
+  })
+  await service.recheckAll()
+  assert.equal(peak, 1, 'a registry is a shared resource; parallel whois is how a plugin gets rate-limited')
+})
+
+test('recheckAll on an empty watch list asks nobody, and is not an error', async () => {
+  let called = false
+  const service = seeded([], async () => { called = true; return REGISTERED })
+  assert.deepEqual(await service.recheckAll(), [])
+  assert.equal(called, false)
+})
+
+test('a failing domain does not stop the rest, and reports itself as failed', async () => {
+  const service = seeded(['bad.co.ke', 'good.co.ke'], async (d) => {
+    if (d === 'bad.co.ke') throw new Error('registry refused the connection')
+    return REGISTERED
+  })
+  const out = await service.recheckAll()
+  assert.equal(out.length, 2, 'the second domain must still be checked')
+  assert.equal(out[0].ok, false)
+  assert.equal(out[1].ok, true)
+})
+
+test('recheckAll RECORDS: the pill and the board move together', async () => {
+  const service = seeded(['itikia.co.ke'], async () => REGISTERED)
+  assert.equal((await service.summary()).label, 'not checked yet', 'seeded, never asked')
+  await service.recheckAll()
+  const after = await service.summary()
+  assert.notEqual(after.label, 'not checked yet')
+  assert.equal(after.lastResult?.domain, 'itikia.co.ke')
+})

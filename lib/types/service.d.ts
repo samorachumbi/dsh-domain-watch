@@ -47,6 +47,11 @@ export interface ServiceDeps {
 export declare function createService({ store, grace, warnWithinDays, timeoutMs, query }: ServiceDeps): {
     check: (input: string, claimed?: string | null, now?: Date) => Promise<CheckResult>;
     checkAndRecord: (input: string, claimed?: string | null) => Promise<CheckResult>;
+    recheckAll: () => Promise<{
+        domain: string;
+        ok: boolean;
+        error: string;
+    }[]>;
     add: (input: string, note?: string) => Promise<CheckResult>;
     remove: (input: string) => Promise<boolean>;
     board: (now?: Date) => Promise<{

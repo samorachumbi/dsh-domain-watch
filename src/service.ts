@@ -208,10 +208,27 @@ export function createService({ store, grace, warnWithinDays, timeoutMs, query =
   /** Stop watching. Removes the RECORD only — it never touches the domain itself. */
   const remove = async (input: string): Promise<boolean> => store.remove(input)
 
+  /**
+   * Re-check EVERY watched domain — what the presence pill's click calls.
+   *
+   * SEQUENTIAL on purpose. A registry is a shared resource, and opening one whois connection per
+   * watched domain at once is how a plugin gets itself rate-limited. The pill reports `busy` for the
+   * whole run either way, which is the honest thing for it to say while it works through the list.
+   */
+  const recheckAll = async (): Promise<{ domain: string; ok: boolean; error: string }[]> => {
+    const watched = await store.list()
+    const out: { domain: string; ok: boolean; error: string }[] = []
+    for (const w of watched) {
+      const r = await checkAndRecord(w.domain)
+      out.push({ domain: r.domain, ok: r.error === '', error: r.error })
+    }
+    return out
+  }
+
   /** The pill's and the board's single source of truth. */
   const summary = async (): Promise<Summary> => summarize(await board(), activity(), lastResult)
 
-  return { check, checkAndRecord, add, remove, board, summary, activity }
+  return { check, checkAndRecord, recheckAll, add, remove, board, summary, activity }
 }
 
 export type DomainWatchService = ReturnType<typeof createService>

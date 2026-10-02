@@ -75,13 +75,34 @@ Three rules make it trustworthy, and all three are about the person reading it r
 this plugin's own thesis broken by the thing built to enforce it.
 
 **Colour changes on invocation, not on completion.** The worst thing an assistant can do is go quiet —
-so the acknowledgement cannot wait for the result.
+so the acknowledgement cannot wait for the result. This one is *enforced with a floor* rather than
+hoped for; see below for why that distinction cost us a day.
 
 **Every alarm carries a verb.** A developer sees red and checks the logs. Everyone else sees red and
 needs to be told what to do, or the light is just anxiety.
 
 The level, the words and that sentence are all decided **host-side** by `summarize()`, and the board
 header paints the same object — so the bubble and the page can never disagree.
+
+### What a click does
+
+Clicking the pill **re-checks every watched domain** and acknowledges the click at once. It does not
+open the board: a status light's click should do the cheap, frequent thing and answer in the shell.
+The board is one click away in the apps pill, or at `/domain-watch/ui`.
+
+The acknowledgement is held for a **minimum of 1.2 s** (`ACK_MS`), and that floor is the whole point.
+A `.ke` whois answers in **24–74 ms** while the pill polls once a second, so the first version
+rendered its blue `checking…` in roughly **one invocation in thirteen** — and, because a click opened
+a tab rather than checking anything, in practice it never rendered at all. Rule 1 above was a claim
+the code did not keep.
+
+The floor is a **bound, not a delay**: when it elapses the truth takes over whatever it is, so a slow
+or failing check can never hide behind an acknowledgement. In a plugin whose entire thesis is that a
+status light must not lie, that bound is the only reason the floor is allowed to exist.
+
+None of this is covered by "it looked fine" — the decision was hoisted out of the React function
+body into a pure `pillState()` precisely so it could be tested, and reintroducing each defect fails
+the suite.
 
 Motion is a slow breath (~2.5s), never a blink: a permanently blinking element becomes wallpaper
 within a week and then hides the morning it actually mattered. It stops entirely under

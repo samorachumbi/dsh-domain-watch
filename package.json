@@ -1,6 +1,6 @@
 {
   "name": "dsh-domain-watch",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A presence pill in the harness shell plus four agent tools: whether a domain is really registered at the REGISTRY, who the registrar of record is, when it dies, and whether the dashboard telling you it is fine is telling the truth.",
   "keywords": [
     "dsh",
