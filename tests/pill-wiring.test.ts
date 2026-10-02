@@ -155,6 +155,19 @@ test('the tooltip describes what a click now does', () => {
   assert.equal(/click to open/.test(CODE), false, 'the old wording promised a tab')
 })
 
+test('the HOST never promises that a click opens the board', () => {
+  // Caught by reading the live `/state` payload after the fix: the client tooltip had been corrected
+  // but the host was still saying "Click to open the board", which the change had just made false.
+  // The tooltip IS `summary.action`, so the two have to move together — this asserts the half that
+  // has no other guard.
+  const summarySrc = readFileSync(new URL('../src/summary.ts', import.meta.url), 'utf8')
+  const stale = ['Click to open the board', 'Click to see what to do', 'Click to see which', 'Click to see why']
+  for (const text of stale) {
+    assert.equal(summarySrc.includes(text), false, 'stale action text: "' + text + '"')
+  }
+  assert.match(summarySrc, /Click to re-check/, 'the calm states must say what a click now does')
+})
+
 test('moving the board off the pill did NOT delete the board', () => {
   // This guard caught its own author: the first version asserted the PILL still referenced
   // `/domain-watch/ui` — precisely what the fix removed — so it failed on correct code. The

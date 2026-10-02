@@ -115,7 +115,7 @@ export function summarize(
   if (notRegistered > 0) {
     return {
       ...base, level: 'alarm', label: 'not registered', glyph: null,
-      action: 'You do not own this domain yet, whatever any dashboard says. Click to see what to do.',
+      action: 'You do not own this domain yet, whatever any dashboard says. Click to re-check; the Domains app in the Apps pill says what to do.',
     }
   }
   if (dead > 0) {
@@ -129,13 +129,13 @@ export function summarize(
   if (expiring > 0) {
     return {
       ...base, level: 'attention', label: expiring === 1 ? '1 expiring' : `${expiring} expiring`, glyph: null,
-      action: 'Renews within 60 days. Click to see which, and when.',
+      action: 'Renews within 60 days. Click to re-check; the Domains app in the Apps pill shows which, and when.',
     }
   }
   if (unchecked > 0) {
     return {
       ...base, level: 'attention', label: unchecked === 1 ? '1 unchecked' : `${unchecked} unchecked`, glyph: null,
-      action: 'A registry check did not complete, so this is not a clean bill of health. Click to see why.',
+      action: 'A registry check did not complete, so this is not a clean bill of health. Click to re-check.',
     }
   }
 
@@ -158,7 +158,7 @@ export function summarize(
     // rendered as `domains | domains ✓` — a duplication caught by looking at the screenshot.
     ...base, level: 'calm', label: 'fine', glyph: '✓',
     action: watched === 1
-      ? '1 domain watched and registered. Click to open the board.'
-      : `${watched} domains watched and registered. Click to open the board.`,
+      ? '1 domain watched and registered. Click to re-check.'
+      : `${watched} domains watched and registered. Click to re-check.`,
   }
 }
