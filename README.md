@@ -28,6 +28,7 @@ A cache is wrong in both directions. The fix is not a better dashboard. The fix 
 authority, and refusing to average the two answers into a comfortable middle.
 
 ![The domain board, dark theme](docs/board-dark.png)
+![The same board, light theme](docs/board-light.png)
 
 ## What it does
 
